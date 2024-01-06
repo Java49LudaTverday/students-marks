@@ -15,6 +15,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import telran.exceptions.NotFoundException;
 import telran.students.dto.Mark;
 import telran.students.dto.Student;
+import telran.students.model.StudentDoc;
+import telran.students.repo.StudentRepo;
 import telran.students.service.StudentsService;
 
 @SpringBootTest
@@ -26,6 +28,8 @@ class StudentsServiceTests {
 	private static final Student removedStudent = new Student(ID_1, "name1", "050-1234567");
 	@Autowired
 	StudentsService studentsService;
+	@Autowired
+	StudentRepo studentsRepo;
 	@Autowired
 	DbTestCreation dbCreation;
 
@@ -53,6 +57,10 @@ class StudentsServiceTests {
 	void addNormalStudent() {
 		Student actual = studentsService.addStudent(normalStudent);
 		assertEquals(actual, normalStudent);
+		StudentDoc newStudentDoc = studentsRepo.findById(normalStudent.id()).orElse(null);
+		Student newStudent = new Student(newStudentDoc.getId(), 
+				newStudentDoc.getName(), newStudentDoc.getPhone());
+		assertEquals(newStudent, actual);
 		List<Mark> marks = studentsService.getMarks(ID_8);
 		assertTrue(marks.isEmpty());
 	}
@@ -65,10 +73,12 @@ class StudentsServiceTests {
 	}
 	@Test
 	@DisplayName("Service: update phone number for normal student")
-	void updatePhoneNOrmalFlow() {
+	void updatePhoneNormalFlow() {
 		String newPhone = "050-1111111";
 		Student actual = studentsService.updatePhone(ID_1, newPhone);
+		StudentDoc student = studentsRepo.findById(ID_1).orElse(null);
 		assertEquals(actual.phone(), newPhone);
+		assertEquals(student.getPhone(), actual.phone());
 	}
 	@Test
 	@DisplayName("Service: update phone number for not exist student")
@@ -97,6 +107,7 @@ class StudentsServiceTests {
 	void removeNormalStudent() {
 		Student actual = studentsService.removeStudent(ID_1);
 		assertEquals(actual, removedStudent);
+		assertNull(studentsRepo.findById(ID_1).orElse(null));
 	}
 	@Test
 	@DisplayName("Service: trying remove not exist student")
