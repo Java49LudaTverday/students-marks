@@ -122,4 +122,7 @@ public class DbTestCreation {
 		}
 		return res;
 	}
+	public Student getStudent(long id) {
+		return students[(int) (id -1)];
+	}
 }

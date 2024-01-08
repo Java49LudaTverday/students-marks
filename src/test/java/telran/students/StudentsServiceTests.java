@@ -11,6 +11,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.mongodb.MongoTransactionManager;
 
 import telran.exceptions.NotFoundException;
 import telran.students.dto.Mark;
@@ -32,11 +34,18 @@ class StudentsServiceTests {
 	StudentRepo studentsRepo;
 	@Autowired
 	DbTestCreation dbCreation;
+	@MockBean
+	MongoTransactionManager transactionManager;
 
 	@BeforeEach
 	void setUp() {
 		dbCreation.createDB();
 	}
+//	@Test
+//	void transactionManagerTest() {
+//		assertNotNull(transactionManager);
+//	}
+	
 
 	@Test
 	@DisplayName("Service: get marks with normal id")
@@ -116,7 +125,54 @@ class StudentsServiceTests {
 		studentsService.removeStudent(ID_8));
 		
 	}
-			
-			
+	@Test
+	@DisplayName("Service: get student by phone")
+	void getStudentPhoneTest() {
+		Student student2 = dbCreation.getStudent(2);
+		assertEquals(student2, studentsService.getStudentByPhone(DbTestCreation.PHONE_2));
+		assertNull(studentsService.getStudentByPhone("kuku"));
+	}
+	@Test
+	@DisplayName("Service: get students with phone prefix")
+	void getStudentsPhonePrefixTest() {
+		List<Student> expected = List.of(dbCreation.getStudent(2));
+		String phonePrefix = DbTestCreation.PHONE_2.substring(0, 3);
+		List<Student> actual = studentsService.getStudentByPhonePrefix(phonePrefix);
+		assertIterableEquals(expected, actual);
+		assertTrue(studentsService.getStudentByPhonePrefix("kuku").isEmpty());
+	}
+	@Test
+	@DisplayName("Service: get good students ")
+	void getStudentsAllGoodMarksTest() {
+		List<Student> expected = List.of(dbCreation.getStudent(4), dbCreation.getStudent(6));
+		List<Student> actual = studentsService.getStudentsAllGoodMarks(70);
+		assertIterableEquals(expected, actual);
+		assertTrue(studentsService.getStudentsAllGoodMarks(100).isEmpty());
+		
+	}
+	@Test
+	@DisplayName("Service: get students few marks ")
+	void getStudentsFewMarksTest() {
+		List<Student> expected = List.of(dbCreation.getStudent(2), dbCreation.getStudent(7));
+		List<Student> actual = studentsService.getStudentsFewMarks(2);
+		assertIterableEquals(expected, actual);
+		assertTrue(studentsService.getStudentsFewMarks(0).isEmpty());		
+	}		
+	@Test
+	@DisplayName("Service: getting students having good marks at the given subject")
+	void getStudentsAllGoodMarksSubjectTets_existingSubjectAndScore_expectedListOf2 () {
+		List<Student> expected = List.of(dbCreation.getStudent(4), dbCreation.getStudent(6));
+		List<Student> actual = studentsService.getStudentsAllGoodMarksSubject(dbCreation.SUBJECT_2, 100);
+		assertIterableEquals(expected, actual);
+		assertTrue(studentsService.getStudentsAllGoodMarksSubject(dbCreation.SUBJECT_2, 0).isEmpty());	
+	}
+	@Test
+	@DisplayName("Service: getting students number of marks in close range [0,1]")
+	void getStudentsMarksAmountBetweenTets_closeRange_expectedListOf2 () {
+		List<Student> expected = List.of(dbCreation.getStudent(2), dbCreation.getStudent(7));
+		List<Student> actual = studentsService.getStudentsMarksAmountBetween(0,1);
+		assertIterableEquals(expected, actual);
+		assertTrue(studentsService.getStudentsMarksAmountBetween(5,5).isEmpty());	
+	}	
 
 }
