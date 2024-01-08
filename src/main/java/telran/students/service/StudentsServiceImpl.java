@@ -27,7 +27,7 @@ public class StudentsServiceImpl implements StudentsService {
 			throw new IllegalStateException(String.format("Student %d already exists", id));
 		}
 		studentRepo.save(StudentDoc.of(student));
-		log.debug("saved {}",  student);
+		log.debug("saved {}", student);
 		return student;
 	}
 
@@ -60,7 +60,7 @@ public class StudentsServiceImpl implements StudentsService {
 	@Transactional
 	public Student removeStudent(long id) {
 		StudentDoc studentDoc = studentRepo.findStudentNoMarks(id);
-		if(studentDoc == null) {
+		if (studentDoc == null) {
 			throw new NotFoundException(String.format("student %d not found", id));
 		}
 		studentRepo.deleteById(id);
@@ -71,13 +71,49 @@ public class StudentsServiceImpl implements StudentsService {
 	@Override
 	@Transactional(readOnly = true)
 	public List<Mark> getMarks(long id) {
-		StudentDoc studentDoc= studentRepo.findStudentMarks(id);
-		if(studentDoc == null) {
+		StudentDoc studentDoc = studentRepo.findStudentMarks(id);
+		if (studentDoc == null) {
 			throw new NotFoundException(String.format("student %d not found", id));
 		}
-		log.debug("id {}, name {}, phone {}, marks {}", studentDoc.getId(),
-				studentDoc.getName(), studentDoc.getPhone(), studentDoc.getMarks());
+		log.debug("id {}, name {}, phone {}, marks {}", studentDoc.getId(), studentDoc.getName(), studentDoc.getPhone(),
+				studentDoc.getMarks());
 		return studentDoc.getMarks();
+	}
+
+	@Override
+	public Student getStudentByPhone(String phoneNumber) {
+		IdName studentDoc = studentRepo.findByPhone(phoneNumber);
+		Student res = null;
+		if (studentDoc != null) {
+			res = new Student(studentDoc.getId(), studentDoc.getName(), phoneNumber);
+		}
+		return res;
+	}
+
+	@Override
+	public List<Student> getStudentByPhonePrefix(String phonePrefix) {
+		List<IdNamePhone> students = studentRepo.findByPhoneRegex(phonePrefix + ".+");
+		log.debug("number of this students having phone prefix {} is {}", phonePrefix, students.size());
+		return getStudents(students);
+	}
+
+	private List<Student> getStudents(List<IdNamePhone> students) {
+		return students.stream().map(inp ->
+		       new Student(inp.getId(), inp.getName(), inp.getPhone())).toList();
+	}
+
+	@Override
+	public List<Student> getStudentsAllGoodMarks(int thresholdScore) {
+		List<IdNamePhone> students = studentRepo.findByGoodMarks(thresholdScore);
+
+		return getStudents(students);
+	}
+
+	@Override
+	public List<Student> getStudentsFewMarks(int thresholdMarks) {
+		List<IdNamePhone> students = studentRepo.findByFewMarks(thresholdMarks);
+
+		return getStudents(students);
 	}
 
 }
