@@ -1,5 +1,6 @@
 package telran.students.service;
 
+import java.util.Collections;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -131,6 +132,22 @@ public class StudentsServiceImpl implements StudentsService {
 		List<Student> res = getStudents(students);
 		log.trace("gets list of Students {}", res);
 		return res;
+	}
+
+	@Override
+	public List<Mark> getStudentSubjectMarks(long id, String subject) {
+		if(studentRepo.existsById(id)) {
+			throw new NotFoundException(String.format("Student with id %d not found", id));
+		}
+		log.debug("received students id {} and subject {} ", id, subject);
+		MarksOnly marksOnly = studentRepo.findByIdAndMarksSubject(id, subject);
+		List<Mark> res = Collections.emptyList();
+		if(marksOnly != null) {
+			res = marksOnly.getMarks();
+			log.debug("student {} doesn`t have marks of subject {}",id,  subject);
+		}		
+		log.debug("marks: {}", res);
+		return res.stream().filter(m -> m.subject().equals(subject)).toList();
 	}
 
 }
