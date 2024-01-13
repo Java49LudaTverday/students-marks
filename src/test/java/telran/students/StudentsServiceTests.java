@@ -16,6 +16,7 @@ import org.springframework.data.mongodb.MongoTransactionManager;
 
 import telran.exceptions.NotFoundException;
 import telran.students.dto.Mark;
+import telran.students.dto.NameAvgScore;
 import telran.students.dto.Student;
 import telran.students.model.StudentDoc;
 import telran.students.repo.StudentRepo;
@@ -164,7 +165,7 @@ class StudentsServiceTests {
 		List<Student> expected = List.of(dbCreation.getStudent(4), dbCreation.getStudent(6));
 		List<Student> actual = studentsService.getStudentsAllGoodMarksSubject(dbCreation.SUBJECT_2, 100);
 		assertIterableEquals(expected, actual);
-		assertTrue(studentsService.getStudentsAllGoodMarksSubject(dbCreation.SUBJECT_2, 0).isEmpty());	
+		assertTrue(studentsService.getStudentsAllGoodMarksSubject(dbCreation.SUBJECT_2, 101).isEmpty());	
 	}
 	@Test
 	@DisplayName("Service: getting students number of marks in close range [0,1]")
@@ -174,5 +175,63 @@ class StudentsServiceTests {
 		assertIterableEquals(expected, actual);
 		assertTrue(studentsService.getStudentsMarksAmountBetween(5,5).isEmpty());	
 	}	
+	@Test
+	@DisplayName("Service: gets marks by subjects for student")
+		void getStudentSubjectMarks () {
+			List<Mark> expected = List.of(new Mark(DbTestCreation.SUBJECT_1, DbTestCreation.DATE_1, 80),
+					new Mark(DbTestCreation.SUBJECT_1, DbTestCreation.DATE_2, 90));
+			List<Mark> actual = studentsService.getStudentSubjectMarks(dbCreation.ID_1, DbTestCreation.SUBJECT_1);
+			assertTrue(studentsService.getStudentSubjectMarks(4, DbTestCreation.SUBJECT_1).isEmpty());
+			assertIterableEquals(expected, actual);
+			assertThrowsExactly(NotFoundException.class,()->
+					studentsService.getStudentSubjectMarks(1000, DbTestCreation.SUBJECT_1));
+		}
+		@Test
+		@DisplayName("Service: get students by avg score")
+		void getStudentAvgScoreGreater() {
+			List<NameAvgScore> expected = List.of(new NameAvgScore(DbTestCreation.NAME_6, 100), new NameAvgScore(DbTestCreation.NAME_4, 93));
+			List<NameAvgScore> actual = studentsService.getStudentAvgScore(90);
+			assertIterableEquals(expected, actual);
+		}
+	@Test
+	@DisplayName("Service: get marks of student with range of dates")
+	void getStudentMarksAtDates() {
+		List<Mark> expected = List.of(dbCreation.getStudentMarks(ID_1));
+		List<Mark> actual = studentsService.getStudentMarksAtDates(ID_1, dbCreation.DATE_1, dbCreation.DATE_2);
+		assertIterableEquals(expected, actual);
+	}
+	@Test
+	@DisplayName("Service: no marks of student with range of dates")
+	void getNoMarksAtDates_EmptyList() {
+		assertTrue(studentsService.getStudentMarksAtDates(dbCreation.ID_2, dbCreation.DATE_3, dbCreation.DATE_4)
+				.isEmpty());		
+	}	
+	@Test
+	@DisplayName("Service: try get marks with range of dates having wrong id")
+	void getMarksAtDates_wrongId_ThrowsException() {
+		assertThrowsExactly(NotFoundException.class, () -> studentsService.getStudentMarksAtDates(ID_8,
+				dbCreation.DATE_1, dbCreation.DATE_2));		
+	}
+	@Test
+	@DisplayName("Service: get best students")
+	void getBestStudents_ListOf3And1() {
+		List<String> expected_3 = List.of(dbCreation.NAME_6,dbCreation.NAME_4, dbCreation.NAME_1);
+		List<String> actual_3 = studentsService.getBestStudents(3);
+		assertIterableEquals(expected_3, actual_3);
+		List<String> expected_1 = List.of(dbCreation.NAME_6);
+		List<String> actual_1 = studentsService.getBestStudents(1);
+		assertIterableEquals(expected_1, actual_1);
+	}
+	@Test
+	@DisplayName("Service: get worth students")
+	void getWorthStudents_ListOf7() {
+		List<String> expected = List.of(dbCreation.NAME_7, dbCreation.NAME_2, dbCreation.NAME_5,
+				dbCreation.NAME_3, dbCreation.NAME_1, dbCreation.NAME_4, dbCreation.NAME_6);
+		List<String> actual = studentsService.getWorstStudents(7);
+		assertEquals(expected, actual);
+		
+		
+	}
+	}
 
-}
+

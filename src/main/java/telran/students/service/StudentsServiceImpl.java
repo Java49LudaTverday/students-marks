@@ -1,8 +1,25 @@
 package telran.students.service;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 
+import org.bson.Document;
+import org.springframework.data.domain.Sort.Direction;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.AccumulatorOperators;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationExpression;
+import org.springframework.data.mongodb.core.aggregation.ArrayOperators;
+import org.springframework.data.mongodb.core.aggregation.BucketOperation;
+import org.springframework.data.mongodb.core.aggregation.GroupOperation;
+import org.springframework.data.mongodb.core.aggregation.LimitOperation;
+import org.springframework.data.mongodb.core.aggregation.MatchOperation;
+import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
+import org.springframework.data.mongodb.core.aggregation.SortOperation;
+import org.springframework.data.mongodb.core.aggregation.UnwindOperation;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,7 +35,9 @@ import telran.students.repo.StudentRepo;
 @Slf4j
 @RequiredArgsConstructor
 public class StudentsServiceImpl implements StudentsService {
+	private static final int SCORE_BEST_STUDENT = 80;
 	final StudentRepo studentRepo;
+	final MongoTemplate mongoTemplate;
 
 	@Override
 	@Transactional
@@ -99,8 +118,7 @@ public class StudentsServiceImpl implements StudentsService {
 	}
 
 	private List<Student> getStudents(List<IdNamePhone> students) {
-		return students.stream().map(inp ->
-		       new Student(inp.getId(), inp.getName(), inp.getPhone())).toList();
+		return students.stream().map(inp -> new Student(inp.getId(), inp.getName(), inp.getPhone())).toList();
 	}
 
 	@Override
@@ -136,18 +154,115 @@ public class StudentsServiceImpl implements StudentsService {
 
 	@Override
 	public List<Mark> getStudentSubjectMarks(long id, String subject) {
-		if(studentRepo.existsById(id)) {
+		if (!studentRepo.existsById(id)) {
+			throw new NotFoundException(String.format("student with id %d not found", id));
+		}
+		MatchOperation matchStudent = Aggregation.match(Criteria.where("id").is(id));
+		UnwindOperation unwindOperation = Aggregation.unwind("marks");
+		MatchOperation matchMarksSubject = Aggregation.match(Criteria.where("marks.subject").is(subject));
+		ProjectionOperation projectionOperation = Aggregation.project("marks.score", "marks.date");
+		Aggregation pipeLine = Aggregation.newAggregation(matchStudent, unwindOperation, matchMarksSubject,
+				projectionOperation);
+		var aggregationResult = mongoTemplate.aggregate(pipeLine, StudentDoc.class, Document.class);
+		List<Document> listDocuments = aggregationResult.getMappedResults();
+		log.debug("listDocuments: {}", listDocuments);
+		List<Mark> result = listDocuments.stream().map(d -> new Mark(subject,
+				d.getDate("date").toInstant().atZone(ZoneId.systemDefault()).toLocalDate(), d.getInteger("score")))
+				.toList();
+		;
+		log.debug("result: {}", result);
+		return result;
+	}
+
+	@Override
+	public List<NameAvgScore> getStudentAvgScore(int avgScoreThreshold) {
+		UnwindOperation unwindOperation = Aggregation.unwind("marks");
+		GroupOperation groupOperation = Aggregation.group("name").avg("marks.score").as("avgScore");
+		MatchOperation matchOperation = Aggregation.match(Criteria.where("avgScore").gt(avgScoreThreshold));
+		SortOperation sortOperation = Aggregation.sort(Direction.DESC, "avgScore");
+		Aggregation pipeline = Aggregation.newAggregation(unwindOperation, groupOperation, matchOperation,
+				sortOperation);
+
+		List<NameAvgScore> result = mongoTemplate.aggregate(pipeline, StudentDoc.class, Document.class)
+				.getMappedResults().stream()
+				.map(d -> new NameAvgScore(d.getString("_id"), d.getDouble("avgScore").intValue())).toList();
+		log.debug("result: {}", result);
+		return result;
+	}
+
+	@Override
+	public List<Mark> getStudentMarksAtDates(long id, LocalDate from, LocalDate to) {
+		// TODO
+		// returns list of Mark objects of the required student at the given dates
+		// Filtering and projection should be done at DB server
+		// LocalDate from and LocalDate to is checking on Controller and from less than to
+		if (!studentRepo.existsById(id)) {
 			throw new NotFoundException(String.format("Student with id %d not found", id));
 		}
-		log.debug("received students id {} and subject {} ", id, subject);
-		MarksOnly marksOnly = studentRepo.findByIdAndMarksSubject(id, subject);
-		List<Mark> res = Collections.emptyList();
-		if(marksOnly != null) {
-			res = marksOnly.getMarks();
-			log.debug("student {} doesn`t have marks of subject {}",id,  subject);
-		}		
+		MatchOperation matchOperation = Aggregation.match(Criteria.where("id").is(id));
+		UnwindOperation unwindOperation = Aggregation.unwind("marks");
+		MatchOperation matchDates = Aggregation.match(Criteria.where("marks.date").gte(from).lte(to));
+		ProjectionOperation projectionOperation = Aggregation.project("marks.score", "marks.date", "marks.subject");
+		Aggregation pipeline = Aggregation.newAggregation(matchOperation, unwindOperation, matchDates,
+				projectionOperation);
+		var aggregationResult = mongoTemplate.aggregate(pipeline, StudentDoc.class, Document.class);
+		List<Document> listDocuments = aggregationResult.getMappedResults();
+		log.debug("listDocuments: {}", listDocuments);
+		List<Mark> res = listDocuments.stream()
+				.map(d -> new Mark(d.getString("subject"),
+						d.getDate("date").toInstant().atZone(ZoneId.systemDefault()).toLocalDate(),
+						d.getInteger("score")))
+				.toList();
 		log.debug("marks: {}", res);
-		return res.stream().filter(m -> m.subject().equals(subject)).toList();
+		return res;
+	}
+
+	@Override
+	public List<String> getBestStudents(int nStudents) {
+		// TODO
+		// returns list of a given number of the best students
+		// Best students are the ones who have most scores greater than 80
+		/*************************************/
+		UnwindOperation unwind = Aggregation.unwind("marks");
+		GroupOperation group = Aggregation.group("name").avg("marks.score").as("avgScore");
+		MatchOperation match = Aggregation.match(Criteria.where("avgScore").gte(SCORE_BEST_STUDENT));
+		ProjectionOperation projection = Aggregation.project("name", "avgScore");
+		SortOperation sort = Aggregation.sort(Direction.DESC, "avgScore");
+		LimitOperation limit = Aggregation.limit(nStudents);
+
+		Aggregation pipeline = Aggregation.newAggregation(unwind, group, match, projection, limit, sort);
+		var aggregationResult = mongoTemplate.aggregate(pipeline, StudentDoc.class, Document.class);
+		List<Document> listDocuments = aggregationResult.getMappedResults();
+		log.debug("listDocuments: {}", listDocuments);
+		List<String> res = listDocuments.stream().map(d -> d.getString("_id")).toList();
+		log.debug("students: {}", res);
+		return res;
+	}
+
+	@Override
+	public List<String> getWorstStudents(int nStudents) {
+		// TODO
+		// returns list of a given number of the worst students
+		// Worst students are the ones who have least sum's of all scores
+		// Students who have no scores at all should be considered as worst
+		/*************************************/
+		// instead of GroupOperation to apply AggregationExpression (with
+		// AccumulatorOperators.Sum) and ProjectionOperation for adding new fields with
+		// computed values
+		/*************************************/
+		AggregationExpression agrExpr = AggregationExpression.from(AccumulatorOperators.Sum.sumOf("marks.score"));
+		ProjectionOperation projection = Aggregation.project("name").and(agrExpr).as("scores");
+		SortOperation sort = Aggregation.sort(Direction.ASC, "scores");
+		LimitOperation limit = Aggregation.limit(nStudents);
+
+		Aggregation pipeline = Aggregation.newAggregation(projection, sort, limit);
+		var aggregationResult = mongoTemplate.aggregate(pipeline, StudentDoc.class, Document.class);
+		List<Document> listDocuments = aggregationResult.getMappedResults();
+		log.debug("listDocuments: {}", listDocuments);
+		List<String> res = listDocuments.stream().map(d -> d.getString("name")).toList();
+		log.debug("students: {}", res);
+		return res;
+
 	}
 
 }

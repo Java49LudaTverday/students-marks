@@ -51,10 +51,10 @@ public class DbTestCreation {
 	final static String SUBJECT_3 = "subject3";
 	final static String SUBJECT_4 = "subject4";
 //****************************
-	private static final LocalDate DATE_1 = LocalDate.parse("2023-10-20");
-	private static final LocalDate DATE_2 = LocalDate.parse("2023-11-20");
-	private static final LocalDate DATE_3 = LocalDate.parse("2023-12-20");
-	private static final LocalDate DATE_4 = LocalDate.parse("2024-01-20");
+	 static final LocalDate DATE_1 = LocalDate.parse("2023-10-20");
+	 static final LocalDate DATE_2 = LocalDate.parse("2023-11-20");
+	 static final LocalDate DATE_3 = LocalDate.parse("2023-12-20");
+	 static final LocalDate DATE_4 = LocalDate.parse("2024-01-20");
 //****************************
 	Student[] students = { new Student(ID_1, NAME_1, PHONE_1), 
 			new Student(ID_2, NAME_2, PHONE_2),
